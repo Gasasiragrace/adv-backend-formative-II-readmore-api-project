@@ -2,9 +2,35 @@ const mongoose = require('mongoose');
 const Book = require('../models/Book');
 const Author = require('../models/Author');
 
+const MIN_YEAR = 1450;
+
+// Rule 3: checks the schema can't express. Only checks fields that are present,
+// so missing required fields are still reported by the schema as 400.
+const validateBookRules = ({ price, publishedYear }) => {
+  if (price !== undefined && Number(price) <= 0) {
+    return 'Price must be greater than zero.';
+  }
+  if (publishedYear !== undefined) {
+    const currentYear = new Date().getFullYear();
+    if (Number(publishedYear) > currentYear) {
+      return `Published year cannot be in the future (latest allowed: ${currentYear}).`;
+    }
+    if (Number(publishedYear) < MIN_YEAR) {
+      return `Published year cannot be before ${MIN_YEAR}.`;
+    }
+  }
+  return null;
+};
+
 // POST /books - create a book for an existing author
 exports.createBook = async (req, res) => {
   try {
+    // Rule 3: reject invalid price/year with 422 before touching the database
+    const ruleError = validateBookRules(req.body);
+    if (ruleError) {
+      return res.status(422).json({ message: ruleError });
+    }
+
     const { author } = req.body;
 
     // Rule 1: no orphan books. The author id must belong to a real author.
@@ -55,6 +81,12 @@ exports.updateBook = async (req, res) => {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
       return res.status(404).json({ message: `Book not found: ${id} is not a valid id` });
+    }
+
+    // Rule 3 also applies on update
+    const ruleError = validateBookRules(req.body);
+    if (ruleError) {
+      return res.status(422).json({ message: ruleError });
     }
 
     // Rule 1 also applies on update: if the author is being changed, the new author must exist.
