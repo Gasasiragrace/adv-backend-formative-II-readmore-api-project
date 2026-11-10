@@ -40,3 +40,26 @@ exports.getAuthor = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+
+// PUT /authors/:id - update an author
+exports.updateAuthor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(404).json({ message: `Author not found: ${id} is not a valid id` });
+    }
+    const author = await Author.findByIdAndUpdate(id, req.body, {
+      returnDocument: 'after',
+      runValidators: true,
+    });
+    if (!author) {
+      return res.status(404).json({ message: `Author with id ${id} not found` });
+    }
+    res.json(author);
+  } catch (err) {
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ message: err.message });
+    }
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};

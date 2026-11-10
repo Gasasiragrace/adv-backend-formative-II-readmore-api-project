@@ -5,5 +5,6 @@ const authorController = require('../controllers/authorController');
 router.post('/', authorController.createAuthor);
 router.get('/', authorController.getAuthors);
 router.get('/:id', authorController.getAuthor);
+router.put('/:id', authorController.updateAuthor);
 
 module.exports = router;
