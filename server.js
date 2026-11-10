@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const app = express();
 app.use(express.json());
 
+app.use('/authors', require('./routes/authorRoutes'));
 app.get('/', (req, res) => {
   res.json({ message: 'ReadMore API is running' });
 });
