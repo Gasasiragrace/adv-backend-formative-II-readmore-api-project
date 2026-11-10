@@ -21,3 +21,30 @@ exports.createBook = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+
+// GET /books - get all books with full author details
+exports.getBooks = async (req, res) => {
+  try {
+    const books = await Book.find().populate('author');
+    res.json(books);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// GET /books/:id - get one book with full author details
+exports.getBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(404).json({ message: `Book not found: ${id} is not a valid id` });
+    }
+    const book = await Book.findById(id).populate('author');
+    if (!book) {
+      return res.status(404).json({ message: `Book with id ${id} not found` });
+    }
+    res.json(book);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
