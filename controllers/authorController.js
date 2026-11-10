@@ -1,4 +1,5 @@
 const Author = require('../models/Author');
+const Book = require('../models/Book');
 const mongoose = require('mongoose');
 
 // POST /authors - create a new author
@@ -60,6 +61,30 @@ exports.updateAuthor = async (req, res) => {
     if (err.name === 'ValidationError') {
       return res.status(400).json({ message: err.message });
     }
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// DELETE /authors/:id - delete an author (policy A: block if they still have books)
+exports.deleteAuthor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(404).json({ message: `Author not found: ${id} is not a valid id` });
+    }
+    const author = await Author.findById(id);
+    if (!author) {
+      return res.status(404).json({ message: `Author with id ${id} not found` });
+    }
+    const bookCount = await Book.countDocuments({ author: id });
+    if (bookCount > 0) {
+      return res.status(409).json({
+        message: `Cannot delete ${author.name}: they still have ${bookCount} book(s). Delete or reassign those books first.`,
+      });
+    }
+    await author.deleteOne();
+    res.json({ message: `Author ${author.name} deleted` });
+  } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
