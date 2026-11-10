@@ -48,3 +48,52 @@ exports.getBook = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+
+// PUT /books/:id - update a book
+exports.updateBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(404).json({ message: `Book not found: ${id} is not a valid id` });
+    }
+
+    // Rule 1 also applies on update: if the author is being changed, the new author must exist.
+    if (req.body.author !== undefined) {
+      const { author } = req.body;
+      if (!mongoose.isValidObjectId(author) || !(await Author.exists({ _id: author }))) {
+        return res.status(400).json({ message: 'Author does not exist. A book must belong to a real author.' });
+      }
+    }
+
+    const book = await Book.findByIdAndUpdate(id, req.body, {
+      returnDocument: 'after',
+      runValidators: true,
+    }).populate('author');
+    if (!book) {
+      return res.status(404).json({ message: `Book with id ${id} not found` });
+    }
+    res.json(book);
+  } catch (err) {
+    if (err.name === 'ValidationError') {
+      return res.status(400).json({ message: err.message });
+    }
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
+
+// DELETE /books/:id - delete a book
+exports.deleteBook = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(404).json({ message: `Book not found: ${id} is not a valid id` });
+    }
+    const book = await Book.findByIdAndDelete(id);
+    if (!book) {
+      return res.status(404).json({ message: `Book with id ${id} not found` });
+    }
+    res.json({ message: `Book "${book.title}" deleted` });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
