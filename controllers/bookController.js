@@ -4,6 +4,13 @@ const Author = require('../models/Author');
 
 const MIN_YEAR = 1450;
 
+// Rule 2: the same author cannot have two books with the same title (case-insensitive)
+const findDuplicateTitle = (author, title, excludeId) => {
+  const filter = { author, title: String(title).trim() };
+  if (excludeId) filter._id = { $ne: excludeId };
+  return Book.findOne(filter).collation({ locale: 'en', strength: 2 });
+};
+
 // Rule 3: checks the schema can't express. Only checks fields that are present,
 // so missing required fields are still reported by the schema as 400.
 const validateBookRules = ({ price, publishedYear }) => {
@@ -36,6 +43,11 @@ exports.createBook = async (req, res) => {
     // Rule 1: no orphan books. The author id must belong to a real author.
     if (!author || !mongoose.isValidObjectId(author) || !(await Author.exists({ _id: author }))) {
       return res.status(400).json({ message: 'Author does not exist. A book must belong to a real author.' });
+    }
+
+    // Rule 2: no duplicate titles for the same author (case-insensitive)
+    if (req.body.title && (await findDuplicateTitle(author, req.body.title))) {
+      return res.status(409).json({ message: 'This author already has a book with that title.' });
     }
 
     const book = await Book.create(req.body);
@@ -94,6 +106,20 @@ exports.updateBook = async (req, res) => {
       const { author } = req.body;
       if (!mongoose.isValidObjectId(author) || !(await Author.exists({ _id: author }))) {
         return res.status(400).json({ message: 'Author does not exist. A book must belong to a real author.' });
+      }
+    }
+
+    // Rule 2 also applies on update: check the final author + title combination,
+    // ignoring the book being updated.
+    if (req.body.title !== undefined || req.body.author !== undefined) {
+      const existing = await Book.findById(id);
+      if (!existing) {
+        return res.status(404).json({ message: `Book with id ${id} not found` });
+      }
+      const finalAuthor = req.body.author || existing.author;
+      const finalTitle = req.body.title !== undefined ? req.body.title : existing.title;
+      if (await findDuplicateTitle(finalAuthor, finalTitle, id)) {
+        return res.status(409).json({ message: 'This author already has a book with that title.' });
       }
     }
 
