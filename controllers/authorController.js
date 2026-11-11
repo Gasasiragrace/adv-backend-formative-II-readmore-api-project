@@ -106,3 +106,44 @@ exports.getAuthorBooks = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+
+// GET /authors/:id/stats - summary computed from the author's books (Rule 6)
+exports.getAuthorStats = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(404).json({ message: `Author not found: ${id} is not a valid id` });
+    }
+    const author = await Author.findById(id);
+    if (!author) {
+      return res.status(404).json({ message: `Author with id ${id} not found` });
+    }
+
+    const books = await Book.find({ author: id });
+
+    // No books: return sensible empty values instead of crashing
+    if (books.length === 0) {
+      return res.json({
+        author: author.name,
+        bookCount: 0,
+        averagePrice: 0,
+        cheapestBook: null,
+        mostExpensiveBook: null,
+      });
+    }
+
+    const total = books.reduce((sum, book) => sum + book.price, 0);
+    const cheapest = books.reduce((min, book) => (book.price < min.price ? book : min));
+    const priciest = books.reduce((max, book) => (book.price > max.price ? book : max));
+
+    res.json({
+      author: author.name,
+      bookCount: books.length,
+      averagePrice: Math.round((total / books.length) * 100) / 100,
+      cheapestBook: cheapest.title,
+      mostExpensiveBook: priciest.title,
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+};
