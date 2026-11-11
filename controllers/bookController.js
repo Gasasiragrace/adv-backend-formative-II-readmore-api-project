@@ -60,10 +60,65 @@ exports.createBook = async (req, res) => {
   }
 };
 
-// GET /books - get all books with full author details
+const escapeRegex = (text) => String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const SORTABLE_FIELDS = ['price', 'title', 'publishedYear'];
+
+// GET /books - list books with optional filters and sorting (Rule 5)
+// Example: /books?genre=Thriller&minPrice=10&maxPrice=30&search=sea&sort=price&order=asc
 exports.getBooks = async (req, res) => {
   try {
-    const books = await Book.find().populate('author');
+    const { genre, minPrice, maxPrice, author, search, sort, order } = req.query;
+    const filter = {};
+
+    // Only the parameters that are present get added to the filter
+    if (genre) {
+      filter.genre = new RegExp(`^${escapeRegex(genre)}$`, 'i');
+    }
+
+    if (minPrice !== undefined || maxPrice !== undefined) {
+      filter.price = {};
+      if (minPrice !== undefined) {
+        if (Number.isNaN(Number(minPrice))) {
+          return res.status(400).json({ message: 'minPrice must be a number.' });
+        }
+        filter.price.$gte = Number(minPrice);
+      }
+      if (maxPrice !== undefined) {
+        if (Number.isNaN(Number(maxPrice))) {
+          return res.status(400).json({ message: 'maxPrice must be a number.' });
+        }
+        filter.price.$lte = Number(maxPrice);
+      }
+    }
+
+    if (author) {
+      if (!mongoose.isValidObjectId(author)) {
+        return res.status(400).json({ message: 'author must be a valid author id.' });
+      }
+      filter.author = author;
+    }
+
+    if (search) {
+      filter.title = new RegExp(escapeRegex(search), 'i');
+    }
+
+    // Sorting: only price, title or publishedYear are allowed
+    let sortOption = {};
+    if (sort) {
+      if (!SORTABLE_FIELDS.includes(sort)) {
+        return res.status(400).json({ message: `sort must be one of: ${SORTABLE_FIELDS.join(', ')}.` });
+      }
+      if (order && !['asc', 'desc'].includes(order)) {
+        return res.status(400).json({ message: 'order must be asc or desc.' });
+      }
+      sortOption[sort] = order === 'desc' ? -1 : 1;
+    }
+
+    const books = await Book.find(filter)
+      .collation({ locale: 'en' })
+      .sort(sortOption)
+      .populate('author');
     res.json(books);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
